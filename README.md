@@ -174,6 +174,7 @@ Bundle 默认配置位于 `cordis.patch.yml`：
 - id: mcp-connector
   config:
     catalogUrl: ''
+    includeBundledCatalog: false   # 不合并随包内置目录，市场只显示下面的卡片
     connectors:
       - id: playwright
         name: Playwright

@@ -69,6 +69,17 @@ const tableNames = ['connections', 'grants', 'catalog', 'snapshots', 'governance
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 const config = (overrides = {}) => Config({ catalogUrl: '', connectors: catalog, persistSecrets: true, openBrowser: false, requestTimeoutMs: 1000, defaultConnections: ['local-tools'], ...overrides });
 
+test('includeBundledCatalog=false 时市场只有部署方的卡片', async () => {
+  const tables = new Map(tableNames.map((name) => [name, makeTable()]));
+  const host = makeHost(tables);
+  await apply(host.ctx, config({ defaultConnections: [], includeBundledCatalog: false }));
+  const listed = await host.defs.get('mcp_connector_catalog').execute({});
+  const ids = (listed.detail?.items ?? listed.detail?.connectors ?? []).map((item) => item.id).sort();
+  assert.deepEqual(ids, ['local-tools', 'vendor-key'], JSON.stringify(listed).slice(0, 400));
+  assert.equal(Config({}).includeBundledCatalog, true);
+  host.dispose();
+});
+
 test('首次启动自动连接预置卡片，并记入台账', async () => {
   const tables = new Map(tableNames.map((name) => [name, makeTable()]));
   const host = makeHost(tables);

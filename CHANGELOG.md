@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 - feat: `defaultConnections` 预置连接 —— 部署方可声明首次启动自动连接的目录卡片（仅 `auth.mode: none`），之后交由用户管理；断开过的不再重连（`lib/default-connections.js`）。
+- feat: `includeBundledCatalog: false` 可让私有部署的市场只显示 `connectors`/远程目录里的卡片，不合并随包内置目录。
 
 ## [0.2.70] - 2026-10-08
 
