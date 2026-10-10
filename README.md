@@ -166,7 +166,7 @@ Bundle 默认配置位于 `cordis.patch.yml`：
 
 `catalogUrl` 默认通过 jsDelivr CDN 读取公共 [dsh-mcp-connector-registry](https://github.com/duhu2000/dsh-mcp-connector-registry)，支持 ETag/TTL 缓存；主源失败时自动尝试 GitHub raw 备用源，再回退到上次缓存或随包内置目录。jsDelivr 的分支 URL 可能存在缓存延迟，因此 Registry 合并后的新卡片不保证秒级出现。需要离线/私有模式时可将 `catalogUrl` 显式设为空字符串；显式配置其他目录 URL 时不会自动切换到公共备用源。
 
-`showSidebarEntry` 默认为 `true`。用户可在 DSH 插件配置页覆盖该值；关闭后只隐藏侧边栏快捷入口，不停用连接器、已连接 MCP Server 或工具。
+`showSidebarEntry` 默认为 `true`。用户可在 DSH 插件配置页覆盖该值；关闭后只隐藏侧边栏快捷入口，不停用连接器、已连接 MCP Server 或工具。宿主没有 settings scope 时（DSH 0.2.x 由 Config schema 派生设置），客户端改为通过 `uiConfig` API 读取 Bundle 配置里的值。
 
 `defaultConnections`（默认空）用于部署方预置连接：列出目录卡片的 `connectorId`（或 `{ connectorId, serverKey }`），首次启动时自动按"所有项目（全局）"连接，之后与用户手动连接的记录完全一样，可在"已安装"里停用、编辑或断开；断开过的预置连接不会在下次启动被重新连接。只接受 `auth.mode: none` 的卡片，凭据型卡片仍需用户本机填写。配合 `connectors` 注入私有卡片即可做到"装上就有默认 MCP"：
 

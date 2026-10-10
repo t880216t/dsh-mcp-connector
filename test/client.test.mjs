@@ -236,6 +236,32 @@ test('partial optional settings services do not block the connector UI', async (
   }
 });
 
+// DSH 0.2.x 的 Host 由 Config schema 派生设置，客户端没有 settingsScope 服务；
+// 不从 Host 读一次，`showSidebarEntry: false` 就永远到不了客户端。
+test('没有 settings scope 时从 Host 的 uiConfig 读取侧边栏可见性', async () => {
+  const requests = [];
+  const fetch = async (url, init) => {
+    requests.push([url, JSON.parse(init.body)]);
+    return { ok: true, async json() { return { ok: true, detail: { showSidebarEntry: false } }; } };
+  };
+  const plugin = await loadClient({ windowExtras: { fetch } });
+  const { ctx, registrations } = clientContext({ settingsScope: null });
+  plugin.apply(ctx);
+  const store = registrations.get('shell.overlay').options.store.create();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(requests, [['/mcp-connector/api', { method: 'uiConfig', params: {} }]]);
+  assert.equal(store.getSnapshot().sidebarVisible, false);
+
+  // A failing or malformed answer keeps the entry visible, as before.
+  for (const fetchImpl of [async () => { throw new Error('offline'); }, async () => ({ ok: true, async json() { return { ok: true, detail: {} }; } })]) {
+    const fallback = await loadClient({ windowExtras: { fetch: fetchImpl } });
+    const scoped = clientContext({ settingsScope: null });
+    fallback.apply(scoped.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(scoped.registrations.get('shell.overlay').options.store.create().getSnapshot().sidebarVisible, true);
+  }
+});
+
 test('设置 scope 控制侧边栏可见性并注册同一弹框的快捷入口', async () => {
   const plugin = await loadClient();
   const settings = mutableSettingsScope({
