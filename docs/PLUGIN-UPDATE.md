@@ -31,6 +31,10 @@ Provider 读取的是 profile 中已经落盘的插件版本，标题版本来�
 
 当 DSH Desktop 或其他宿主没有兼容 Update Provider 时，标题区直接展示绑定 npm 精确版本的 CLI 命令，例如 `dsh plugin --profile web add --config.minimumReleaseAge=0 dsh-mcp-connector@<目标版本>`，并提供复制按钮与 npm 页面入口。运行时会把 `<目标版本>` 替换为 npm 已发布的确切版本；命令中的单次覆盖只用于用户主动跳过本次发布安全等待。Connector 仍不自行执行包管理器命令。
 
+## 关闭更新检查
+
+随宿主产品一起打包、由产品自己的发版升级的部署，在 Bundle 配置里设 `updateCheck: false`。此时 Host 的 `versionStatus` 直接返回 `status: 'disabled'` 且不访问 npm/GitHub；客户端据此隐藏"检查更新"、一键更新和手动升级命令，只显示已安装版本。Provider 探测本身不受影响，但其结果在该状态下不会渲染，因此探测与版本状态谁先返回都不会露出公共构建的安装入口。
+
 ## 安全边界
 
 - 所有变更请求均为浏览器同源 POST，并继续接受 Provider 自身的 Origin、环回地址和运行中任务保护。

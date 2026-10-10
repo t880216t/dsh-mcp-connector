@@ -896,6 +896,51 @@ test('版本检查支持强制刷新且不会被旧缓存隐藏 Provider 更新'
   assert.equal(source.match(/\[open, versionCheckRequest\]/g).length, 2, '手动刷新同步重查版本和 Provider');
 });
 
+// A host product that ships this plugin and upgrades it with its own releases
+// sets `updateCheck: false`; the panel must then neither offer the public npm
+// build (one-click or manual) nor keep a "检查更新" button around.
+test('updateCheck 关闭时面板只显示已安装版本', async () => {
+  const state = [
+    { installedVersion: '0.2.70', latestVersion: null, updateAvailable: false, status: 'disabled', checkedAt: null },
+    // Even a Provider that already answered "update available" must stay hidden.
+    'ready', { provider: { label: '市场' } },
+    { installedVersion: '0.2.70', latestVersion: '0.2.71', updateAvailable: true },
+    null, null, null, false, false, false, false, 0, false, false,
+  ];
+  let cursor = 0;
+  const plugin = await loadClient({
+    windowExtras: { location: { origin: 'http://127.0.0.1:3080' } },
+    jsxRuntime: { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
+    reactApi: {
+      useState(initial) {
+        const index = cursor++;
+        return [index in state ? state[index] : initial, () => {}];
+      },
+      useRef: (current) => ({ current }), useEffect() {},
+    },
+  });
+  const { ctx, registrations } = clientContext();
+  plugin.apply(ctx);
+  const tree = registrations.get('shell.overlay').component({
+    wide: true, useStore: (select) => select({ open: true, detailOpen: false }),
+    actions: { close() {}, detailOpened() {}, detailClosed() {} }, startPromptSession() {},
+  });
+  const nodes = [];
+  function visit(node) {
+    if (!node || typeof node !== 'object') return;
+    nodes.push(node);
+    const children = node.props?.children;
+    for (const child of Array.isArray(children) ? children : [children]) visit(child);
+  }
+  visit(tree);
+  const version = nodes.find((node) => node.props?.className === 'mcpConnectorVersion');
+  assert.equal(version.props.children, 'v0.2.70');
+  assert.match(version.props.title, /更新由宿主产品统一发布/);
+  assert.equal(nodes.some((node) => node.props?.children === '检查更新'), false);
+  assert.equal(nodes.some((node) => node.props?.className === 'mcpConnectorManualUpdate'), false);
+  assert.equal(nodes.some((node) => typeof node.props?.children === 'string' && node.props.children.startsWith('一键更新')), false);
+});
+
 test('市场标题展示安装版本，并通过 Provider 适配层一键更新', async () => {
   const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
   assert.match(source, /method: "versionStatus"/);

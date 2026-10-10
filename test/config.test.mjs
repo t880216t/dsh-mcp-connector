@@ -16,6 +16,8 @@ test('default config uses the independent public registry', () => {
   assert.equal(Config({}).catalogUrl, DEFAULT_CATALOG_URL);
   assert.equal(Config({}).startupTimeoutMs, DEFAULT_STARTUP_TIMEOUT_MS);
   assert.equal(Config({}).showSidebarEntry, true);
+  assert.equal(Config({}).updateCheck, true);
+  assert.equal(Config({ updateCheck: false }).updateCheck, false);
 });
 
 test('an explicit empty catalogUrl keeps bundled-only mode available', () => {

@@ -120,3 +120,26 @@ test('版本源均不可用时仍返回本地安装版本', async () => {
   assert.equal(status.status, 'unavailable');
   assert.equal(warnings.length, 1);
 });
+
+test('updateCheck 关闭时从不访问 npm/GitHub，只报告已安装版本', async () => {
+  let calls = 0;
+  const service = createVersionStatusService({
+    installedVersion: '0.2.70',
+    enabled: false,
+    fetchImpl: async () => { calls += 1; throw new Error('must not be called'); },
+  });
+  const expected = {
+    installedVersion: '0.2.70',
+    latestVersion: null,
+    updateAvailable: false,
+    releasePending: false,
+    checking: false,
+    status: 'disabled',
+  };
+  const status = service.status({ force: true });
+  for (const [key, value] of Object.entries(expected)) assert.equal(status[key], value, key);
+  const checked = await service.check({ force: true });
+  assert.equal(checked.status, 'disabled');
+  assert.equal(calls, 0, '关闭后不得发起任何外部请求');
+  service.dispose();
+});
