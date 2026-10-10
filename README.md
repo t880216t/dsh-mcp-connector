@@ -168,6 +168,21 @@ Bundle 默认配置位于 `cordis.patch.yml`：
 
 `showSidebarEntry` 默认为 `true`。用户可在 DSH 插件配置页覆盖该值；关闭后只隐藏侧边栏快捷入口，不停用连接器、已连接 MCP Server 或工具。
 
+`defaultConnections`（默认空）用于部署方预置连接：列出目录卡片的 `connectorId`（或 `{ connectorId, serverKey }`），首次启动时自动按"所有项目（全局）"连接，之后与用户手动连接的记录完全一样，可在"已安装"里停用、编辑或断开；断开过的预置连接不会在下次启动被重新连接。只接受 `auth.mode: none` 的卡片，凭据型卡片仍需用户本机填写。配合 `connectors` 注入私有卡片即可做到"装上就有默认 MCP"：
+
+```yaml
+- id: mcp-connector
+  config:
+    catalogUrl: ''
+    connectors:
+      - id: playwright
+        name: Playwright
+        auth: { mode: none }
+        servers:
+          - { serverKey: main, serverName: playwright, transport: stdio, command: npx, args: ['-y', '@playwright/mcp'] }
+    defaultConnections: [playwright]
+```
+
 ## 兼容性与责任边界
 
 | 项目 | 当前边界 |
