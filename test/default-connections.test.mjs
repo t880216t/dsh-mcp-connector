@@ -267,3 +267,28 @@ test('凭据型预置：令牌轮换后下次启动原地刷新，用户断开�
     await mcp.close();
   }
 });
+
+test('凭据型预置：Cordis 上未声明注入的服务读取会抛错，仍通过 inject 回调拿到服务', async () => {
+  const accepted = { value: 'ak-1' };
+  const mcp = await startBearerMcpServer(accepted);
+  const tables = new Map(tableNames.map((name) => [name, makeTable()]));
+  const base = makeHost(tables);
+  const service = { async credential() { return { bearerToken: 'ak-1' }; } };
+  // The plugin's own ctx refuses the read; only the ctx the inject callback
+  // receives exposes the service — like a Cordis Host.
+  const strictCtx = new Proxy(base.ctx, {
+    get(target, prop, receiver) {
+      if (prop === 'platformKey') throw new Error('service "platformKey" is not injected');
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+  strictCtx.inject = (names, callback) => { callback({ ...base.ctx, platformKey: service, effect: base.ctx.effect }); };
+  try {
+    await apply(strictCtx, config({ connectors: [...catalog, platformCard(mcp.url)], defaultConnections: [{ connectorId: 'platform-tool', credentialService: 'platformKey' }] }));
+    await settle();
+    assert.equal(base.loader.entries.get('mcp-platform-tool-main')?.options.config.headers.Authorization, 'Bearer ak-1', base.logs.join('\n'));
+  } finally {
+    base.dispose();
+    await mcp.close();
+  }
+});
