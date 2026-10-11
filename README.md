@@ -170,7 +170,7 @@ Bundle 默认配置位于 `cordis.patch.yml`：
 
 `updateCheck` 默认为 `true`：面板标题旁显示"检查更新"，并访问 npm `latest` 与 GitHub Release 判断是否可升级，宿主提供更新 Provider（如 DSH Market）时给出一键更新。随宿主产品一起发版、由产品统一升级的部署设为 `false`：不访问 npm/GitHub，面板只显示已安装版本，不出现任何升级入口（否则一次"一键更新"会把产品定制的构建换成公共 npm 版本）。
 
-`defaultConnections`（默认空）用于部署方预置连接：列出目录卡片的 `connectorId`（或 `{ connectorId, serverKey }`），首次启动时自动按"所有项目（全局）"连接，之后与用户手动连接的记录完全一样，可在"已安装"里停用、编辑或断开；断开过的预置连接不会在下次启动被重新连接。只接受 `auth.mode: none` 的卡片，凭据型卡片仍需用户本机填写。配合 `connectors` 注入私有卡片即可做到"装上就有默认 MCP"：
+`defaultConnections`（默认空）用于部署方预置连接：列出目录卡片的 `connectorId`（或 `{ connectorId, serverKey }`），首次启动时自动按"所有项目（全局）"连接，之后与用户手动连接的记录完全一样，可在"已安装"里停用、编辑或断开；断开过的预置连接不会在下次启动被重新连接。免凭据卡片直接连；凭据型卡片要在预置项上写 `credentialService`——宿主上一个 Cordis 服务的名字，形如 `{ credential({ connectorId, serverKey, connector }) => Promise<{ bearerToken? | apiKeyValue? | credentialValues? } | undefined>, subscribe?(listener) => dispose }`：服务给出凭据时才连（给不出就等，服务通知变化时再试，比如用户登录之后），凭据变化时原地重配，用户断开过的仍不塞回。没有 `credentialService` 的凭据型卡片仍需用户本机填写。配合 `connectors` 注入私有卡片即可做到"装上就有默认 MCP"：
 
 ```yaml
 - id: mcp-connector
