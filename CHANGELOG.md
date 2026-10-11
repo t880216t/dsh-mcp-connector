@@ -8,7 +8,7 @@
 - fix: 宿主没有 settings scope 时（DSH 0.2.x），`showSidebarEntry` 通过新的 `uiConfig` API 到达客户端，配置为 false 时侧边栏入口真正隐藏。
 - feat: `includeBundledCatalog: false` 可让私有部署的市场只显示 `connectors`/远程目录里的卡片，不合并随包内置目录。
 - feat: `defaultConnections` 的预置项可带 `credentialService`，凭据型卡片由宿主上的凭据服务给出令牌后自动连接；服务通知变化时重新规划，令牌轮换原地刷新，用户断开过的不塞回。
-- fix: DSH 0.2 宿主上示例 Prompt（去试试）不再报“请先选择工作空间”：0.2 的快照没有 `sessions.current` / `recentWorkspaceId`，改为与宿主「新会话」同样按会话最近更新时间推断当前 Workspace；导航改用 `uiWorkspace.openSession`（0.2 没有 `sessions.open`）。
+- fix: DSH 0.2 宿主上示例 Prompt（去试试）不再报“请先选择工作空间”：0.2 的快照没有 `sessions.current` / `recentWorkspaceId`，改为与宿主「新会话」同样按会话最近更新时间推断当前 Workspace；会话经 `uiWorkspace.openWorkspace` 打开，草稿在其 `beforeOpen`（输入绑定已建立、页面尚未切换）里写入，否则 0.2 会抛 `resolved no binding`。
 - feat: `updateCheck: false` 关闭插件自身的版本检查与升级入口（npm/GitHub 查询、"检查更新"按钮、Provider 一键更新与手动命令），供随宿主产品统一发版的部署使用；`uiConfig` 同时上报该值。
 
 ## [0.2.70] - 2026-10-08

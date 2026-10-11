@@ -94,7 +94,17 @@ function clientContext({
           calls.push(['uiConnectWorkspace', id]);
           return 'session-new';
         },
-        ...(workspaceNavigation === 'ui-0.2' ? { openSession(id) { calls.push(['uiOpenSession', id]); } } : {}),
+        ...(workspaceNavigation === 'ui-0.2'
+          ? {
+              openSession(id) { calls.push(['uiOpenSession', id]); },
+              // 0.2: the session is retained (input binding created) and then
+              // `beforeOpen` runs, before the main view switches.
+              async openWorkspace(id, beforeOpen) {
+                calls.push(['uiOpenWorkspace', id]);
+                beforeOpen?.('session-new');
+              },
+            }
+          : {}),
       }
     : undefined;
   const ctx = {
@@ -811,11 +821,24 @@ test('DSH 0.2：按会话更新时间推断当前 Workspace，经 uiWorkspace.op
   const props = registrations.get('shell.overlay').options.inject();
   assert.deepEqual(props.workspaceContext(), { workspaceId: 'workspace-live', title: '在用项目' });
   await props.startPromptSession('列出我有权限的设备');
+  // Draft written inside `beforeOpen`: after the binding exists, before the
+  // page switches. Writing before openWorkspace throws "resolved no binding".
   assert.deepEqual(calls, [
-    ['uiConnectWorkspace', 'workspace-live'],
+    ['uiOpenWorkspace', 'workspace-live'],
     ['setDraft', '列出我有权限的设备'],
-    ['uiOpenSession', 'session-new'],
   ]);
+});
+
+test('DSH 0.2：导航被取消（beforeOpen 未调用）时报错而不是假装成功', async () => {
+  const plugin = await loadClient();
+  const { ctx, registrations } = clientContext({
+    workspaceNavigation: 'ui-0.2',
+    workspaceItems: [{ workspaceId: 'workspace-a', title: 'A', sessionIds: [], createdAt: '2026-01-01T00:00:00Z' }],
+  });
+  ctx.get('uiWorkspace').openWorkspace = async () => {};
+  plugin.apply(ctx);
+  const props = registrations.get('shell.overlay').options.inject();
+  await assert.rejects(() => props.startPromptSession('示例'), /导航被取消/);
 });
 
 test('DSH 0.2：没有任何会话时取最近创建的 Workspace', async () => {
