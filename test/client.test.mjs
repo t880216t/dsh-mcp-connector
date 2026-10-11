@@ -39,6 +39,7 @@ function clientContext({
   workspaceItems,
   recentWorkspaceId = workspaceId ?? undefined,
   settingsScope,
+  sessionsById,
   workspaceNavigation = 'legacy',
   nativeSidebar = false,
   layout,
@@ -62,7 +63,7 @@ function clientContext({
     list: {
       getSnapshot: () => ({
         items: workspaceItems ?? (workspaceId == null ? [] : [{ workspaceId, sessionIds: ['session-current'] }]),
-        recentWorkspaceId,
+        ...(workspaceNavigation === 'ui-0.2' ? { phase: 'ready' } : { recentWorkspaceId }),
       }),
     },
   };
@@ -72,24 +73,28 @@ function clientContext({
       return 'session-new';
     };
   }
-  const sessions = {
-    list: { getSnapshot: () => ({ current: workspaceId == null ? undefined : 'session-current' }) },
-    open(id) {
-      calls.push(['open', id]);
-    },
-  };
+  const sessions = workspaceNavigation === 'ui-0.2'
+    // DSH 0.2: no `current`, no `open`; summaries by id carry `updatedAt`.
+    ? { list: { getSnapshot: () => ({ byId: sessionsById ?? {}, phase: 'ready' }) } }
+    : {
+        list: { getSnapshot: () => ({ current: workspaceId == null ? undefined : 'session-current' }) },
+        open(id) {
+          calls.push(['open', id]);
+        },
+      };
   if (workspaceNavigation === 'sessions') {
     sessions.create = async (options) => {
       calls.push(['create', options]);
       return 'session-new';
     };
   }
-  const uiWorkspace = workspaceNavigation === 'ui' || workspaceNavigation === 'both'
+  const uiWorkspace = workspaceNavigation === 'ui' || workspaceNavigation === 'both' || workspaceNavigation === 'ui-0.2'
     ? {
         async connectWorkspace(id) {
           calls.push(['uiConnectWorkspace', id]);
           return 'session-new';
         },
+        ...(workspaceNavigation === 'ui-0.2' ? { openSession(id) { calls.push(['uiOpenSession', id]); } } : {}),
       }
     : undefined;
   const ctx = {
@@ -780,6 +785,51 @@ test('没有当前会话时仍向市场提供全部 Workspace 供用户显式选
     { workspaceId: 'workspace-a', title: '项目 A' },
     { workspaceId: 'workspace-b', title: '项目 B' },
   ]);
+});
+
+// DSH 0.2 dropped `sessions.current`, `recentWorkspaceId` and `sessions.open`.
+// The host's own 新会话 picks the workspace whose sessions were updated last;
+// the market must land in the same place, or "去试试" dead-ends on a
+// "请先选择工作空间" the market page has no control for.
+test('DSH 0.2：按会话更新时间推断当前 Workspace，经 uiWorkspace.openSession 导航', async () => {
+  const plugin = await loadClient();
+  const { ctx, registrations, calls } = clientContext({
+    workspaceNavigation: 'ui-0.2',
+    workspaceItems: [
+      { workspaceId: 'workspace-old', title: '旧项目', sessionIds: ['s1'], createdAt: '2026-01-01T00:00:00Z' },
+      { workspaceId: 'workspace-live', title: '在用项目', sessionIds: ['s2', 's3'], createdAt: '2026-01-02T00:00:00Z' },
+      { workspaceId: 'workspace-empty', title: '空项目', sessionIds: [], createdAt: '2026-03-01T00:00:00Z' },
+    ],
+    // Epoch milliseconds, as the host's summaries carry them.
+    sessionsById: {
+      s1: { updatedAt: Date.parse('2026-01-05T00:00:00Z') },
+      s2: { updatedAt: Date.parse('2026-02-01T00:00:00Z') },
+      s3: { updatedAt: Date.parse('2026-04-01T00:00:00Z') },
+    },
+  });
+  plugin.apply(ctx);
+  const props = registrations.get('shell.overlay').options.inject();
+  assert.deepEqual(props.workspaceContext(), { workspaceId: 'workspace-live', title: '在用项目' });
+  await props.startPromptSession('列出我有权限的设备');
+  assert.deepEqual(calls, [
+    ['uiConnectWorkspace', 'workspace-live'],
+    ['setDraft', '列出我有权限的设备'],
+    ['uiOpenSession', 'session-new'],
+  ]);
+});
+
+test('DSH 0.2：没有任何会话时取最近创建的 Workspace', async () => {
+  const plugin = await loadClient();
+  const { ctx, registrations } = clientContext({
+    workspaceNavigation: 'ui-0.2',
+    workspaceItems: [
+      { workspaceId: 'workspace-a', title: 'A', sessionIds: [], createdAt: '2026-01-01T00:00:00Z' },
+      { workspaceId: 'workspace-b', title: 'B', sessionIds: [], createdAt: '2026-02-01T00:00:00Z' },
+    ],
+  });
+  plugin.apply(ctx);
+  const props = registrations.get('shell.overlay').options.inject();
+  assert.deepEqual(props.workspaceContext(), { workspaceId: 'workspace-b', title: 'B' });
 });
 
 test('没有工作空间时给出明确错误，不静默失败', async () => {
