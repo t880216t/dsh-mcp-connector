@@ -1447,6 +1447,56 @@ test('stdio Host 启动失败时不保存且返回进程诊断', { timeout: 1500
   assert.deepEqual(scopeAfterFailure.bindings, [], '连接提交失败必须回滚作用域绑定');
 });
 
+test('目录连接遇到同名本机自定义连接时明确提示冲突，确认后替换', async () => {
+  const { ctx, loader, tools, tables } = makePluginContext();
+  const { apply } = await import('../lib/index.js');
+  await apply(ctx, baseConfig({
+    connectors: [{
+      id: 'xspace-browser', name: 'xspace 浏览器', auth: { mode: 'none' },
+      servers: [{ serverKey: 'main', transport: 'stdio', serverName: 'xspace-browser', command: 'npx', args: ['-y', 'xspace-browser-mcp-bridge'] }],
+    }],
+  }));
+
+  const custom = await tools.defs.get('mcp_connector_configure').execute({
+    name: 'xspace 浏览器', transport: 'stdio', serverName: 'xspace-browser', command: 'node', args: ['bridge.js'],
+  });
+  assert.equal(custom.ok, true, custom.message);
+  const customKey = custom.detail.key;
+
+  const blocked = await tools.defs.get('mcp_connector_connect').execute({ connectorId: 'xspace-browser' }, { signal: undefined });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.detail.kind, 'server-name-conflict');
+  assert.equal(blocked.detail.canReplace, true);
+  assert.match(blocked.message, /已被连接 "xspace 浏览器"/);
+  assert.doesNotMatch(blocked.message, /网络|MCP URL/);
+  assert.ok(loader.entries.has(`mcp-${customKey}`), '未确认替换时必须保留原连接');
+
+  const replaced = await tools.defs.get('mcp_connector_connect').execute({ connectorId: 'xspace-browser', replaceConflicting: true }, { signal: undefined });
+  assert.equal(replaced.ok, true, replaced.message);
+  assert.deepEqual(replaced.detail.replacedKeys, [customKey]);
+  assert.ok(!loader.entries.has(`mcp-${customKey}`));
+  assert.ok(loader.entries.has('mcp-xspace-browser-main'));
+  assert.equal(await tables.get('connections').get(customKey), undefined);
+});
+
+test('不带连接记录的提交错误按原文报告，不归为网络问题', async () => {
+  const { ctx, tools, tables, logs } = makePluginContext();
+  const { apply } = await import('../lib/index.js');
+  await apply(ctx, baseConfig({
+    connectors: [{
+      id: 'scoped-demo', name: 'Scoped Demo', auth: { mode: 'none' },
+      servers: [{ serverKey: 'main', transport: 'stdio', serverName: 'scoped-demo', command: 'node', args: ['server.js'] }],
+    }],
+  }));
+  tables.get('connection_scopes').put = async () => { throw new Error('scope store unavailable'); };
+  const failed = await tools.defs.get('mcp_connector_connect').execute({ connectorId: 'scoped-demo', scope: 'project', workspaceId: 'workspace-1' }, { signal: undefined });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.detail.kind, 'setup');
+  assert.match(failed.message, /^连接失败：.*scope store unavailable/);
+  assert.doesNotMatch(failed.message, /网络和 MCP URL/);
+  assert.ok(logs.some((line) => line.startsWith('[warn] 连接失败') && line.includes('scope store unavailable')));
+});
+
 test('stdio 市场连接、自定义配置与 JSON 导入均透传给 dsh-mcp-client', { timeout: 15000 }, async () => {
   const httpServer = createServer(async (req, res) => {
     for await (const _chunk of req) {}

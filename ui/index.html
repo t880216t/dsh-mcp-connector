@@ -1629,7 +1629,11 @@
       catch (error) { showModalError(error.message); return; }
       const timeoutMs = marketItems[connectorId]?.authMode === 'oauth2-pkce' ? 310_000 : undefined;
       setModalBusy(true, '正在连接…');
-      const r = await call('connect', { connectorId, ...scopeParams }, { timeoutMs });
+      let r = await call('connect', { connectorId, ...scopeParams }, { timeoutMs });
+      if (!r.ok && r.detail?.kind === 'server-name-conflict' && r.detail.canReplace
+        && confirm(`${r.message}。\n\n确认断开该本机连接，改用目录连接？`)) {
+        r = await call('connect', { connectorId, ...scopeParams, replaceConflicting: true }, { timeoutMs });
+      }
       setModalBusy(false);
       showToast(r.message, r.ok);
       if (!r.ok) showModalError(r.message);
